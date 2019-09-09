@@ -1,0 +1,39 @@
+---
+version: '3.2'
+
+networks:
+    mqtt_net:
+        driver: bridge
+
+volumes:
+    mqtt_config:
+        driver: local
+        driver_opts:
+            type: 'none'
+            o: 'bind'
+            device: '/volume1/docker/volumes/mqtt_config'
+    mqtt_data:
+        driver: local
+        driver_opts:
+            type: 'none'
+            o: 'bind'
+            device: '/volume1/docker/volumes/mqtt_data'
+    mqtt_logs:
+        driver: local
+        driver_opts:
+            type: 'none'
+            o: 'bind'
+            device: '/volume1/docker/volumes/mqtt_logs'
+
+services:
+    mqtt:
+        image: eclipse-mosquitto
+        ports:
+            - '1883:1883'
+            - '9001:9001'
+        networks:
+            - mqtt_net
+        volumes:
+            - mqtt_config:/mosquitto/config:rw
+            - mqtt_data:/mosquitto/data:rw
+            - mqtt_logs:/mosquitto/log:rw
