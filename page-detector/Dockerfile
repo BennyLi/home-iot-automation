@@ -8,4 +8,4 @@ COPY . .
 
 VOLUME [ "/data/" ]
 
-CMD [ "python", "-u", "./scan-reader.py" ]
+CMD [ "python", "-u", "./page-detector.py" ]

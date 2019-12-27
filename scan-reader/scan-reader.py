@@ -1,5 +1,6 @@
 #! python3
 
+import json
 import os
 import paho.mqtt.client as mqtt
 import time
@@ -8,74 +9,93 @@ from watchdog.events import PatternMatchingEventHandler
 
 broker_address=os.environ["MQTT_HOST_IP"]
 client_name="scan_reader"
-topic_name="scan_new_file"
 
+topic_name="scan_new_file"
 file_path="/data/eingang/Posteingang"
+
 
 ###########################################################
 #                    MQTT Client                          #
 ###########################################################
 
-def on_message(client, userdata, message):
-    print("message received " ,str(message.payload.decode("utf-8")))
-    print("message topic=",message.topic)
-    print("message qos=",message.qos)
-    print("message retain flag=",message.retain)
+class ScannerMqttClient:
 
-def publish_message(message):
-    print("creating new instance")
-    client = mqtt.Client(client_name)
-    client.on_message=on_message
+    def __init__(self, client_name):
+        self.client = mqtt.Client(client_name)
+        self.known_topics = []
 
-    print("connecting to broker")
-    client.connect(broker_address)
-    client.loop_start()
+    def connect(broker_address):
+        print(f"Connecting to mqtt broker @ {broker_address}")
+        self.client.connect(broker_address)
+        self.client.loop_start()
 
-    print("Subscribing to topic",topic_name)
-    client.subscribe(topic_name)
+    def disconnect():
+        print("Disconnecting from the mqtt broker")
+        self.client.loop_stop()
+        self.client.disconnect()
 
-    print("Publishing message to topic",topic_name)
-    client.publish(topic_name, "New file at " + file_path)
+    def publish(topic, message):
+        print(f"Publishing a message @ the topic '{topic}' with the content: {message}")
+        client.publish(topic, message)
 
-    time.sleep(5)
-    client.loop_stop()
+    def subsribe(topic):
+        if not topic in self.known_topics:
+            print(f"Adding a new subscribtion to the topic '{topic}'")
+            self.known_topics.append(topic)
+            self.client.subscribe(topic)
+        else:
+            print(f"Already subsribed to the topic '{topic}'")
+
+
 
 ###########################################################
 #                    File Watcher                         #
 ###########################################################
 
-patterns = "*"
-ignore_patterns = ""
-ignore_directories = False
-case_sensitive = True
-event_handler = PatternMatchingEventHandler(patterns, ignore_patterns, ignore_directories, case_sensitive)
+class ScanReaderFileWatcher:
+    def __enter__(self):
+        self.patterns = "*"
+        self.ignore_patterns = ""
+        self.ignore_directories = False
+        self.case_sensitive = True
+        self.event_handler = PatternMatchingEventHandler(patterns, ignore_patterns, ignore_directories, case_sensitive)
 
-def on_created(event):
-    print(f"hey, {event.src_path} has been created!")
-    publish_message(f"hey, {event.src_path} has been created!")
+        self.event_handler.on_created = self.on_created
+        self.event_handler.on_deleted = self.on_deleted
+        self.event_handler.on_modified = self.on_modified
+        self.event_handler.on_moved = self.on_moved
 
-def on_deleted(event):
-    print(f"what the f**k! Someone deleted {event.src_path}!")
-    publish_message(f"what the f**k! Someone deleted {event.src_path}!")
+        self.observer = Observer()
 
-def on_modified(event):
-    print(f"hey buddy, {event.src_path} has been modified")
-    publish_message(f"hey buddy, {event.src_path} has been modified")
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.observer.stop()
+        self.observer.join()
 
-def on_moved(event):
-    print(f"ok ok ok, someone moved {event.src_path} to {event.dest_path}")
-    publish_message(f"ok ok ok, someone moved {event.src_path} to {event.dest_path}")
+    def on_created(event):
+        print(f"hey, {event.src_path} has been created!")
+        publish_message(json.dumps({ file_path: event.src_path }))
 
-event_handler.on_created = on_created
-event_handler.on_deleted = on_deleted
-event_handler.on_modified = on_modified
-event_handler.on_moved = on_moved
+    def on_deleted(event):
+        print(f"what the f**k! Someone deleted {event.src_path}!")
+        # publish_message(f"what the f**k! Someone deleted {event.src_path}!")
 
-go_recursively = True
-my_observer = Observer()
-my_observer.schedule(event_handler, file_path, recursive=go_recursively)
+    def on_modified(event):
+        print(f"hey buddy, {event.src_path} has been modified")
+        # publish_message(f"hey buddy, {event.src_path} has been modified")
 
-my_observer.start()
+    def on_moved(event):
+        print(f"ok ok ok, someone moved {event.src_path} to {event.dest_path}")
+        # publish_message(f"ok ok ok, someone moved {event.src_path} to {event.dest_path}")
+
+    def watch_directory(self, directory):
+        self.observer.schedule(self.event_handler, directory, recursive=True)
+        self.observer.start()
+
+
+# TODO Add mqtt client as argument to file watcher
+with ScanReaderFileWatcher() as file_watcher:
+    file_watcher.watch(file_path)
+
 try:
     while True:
         time.sleep(1)
