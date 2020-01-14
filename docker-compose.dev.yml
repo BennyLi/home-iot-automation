@@ -22,7 +22,7 @@ services:
     networks:
       - mqtt_net
     volumes:
-      - ./testdata/:/data/:ro
+      - ./testdata/:/data/
 
   page_detector:
     build:

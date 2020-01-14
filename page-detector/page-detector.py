@@ -1,5 +1,6 @@
 #! python3
 
+import json
 import os
 import paho.mqtt.client as mqtt
 import time
@@ -15,10 +16,10 @@ output_topic_name="scan_new_prepared_file"
 ###########################################################
 
 def on_message(client, userdata, message):
-    print("message received " ,str(message.payload.decode("utf-8")))
-    print("message topic=",message.topic)
-    print("message qos=",message.qos)
-    print("message retain flag=",message.retain)
+    msg_content = message.payload.decode("utf-8")
+    print("message received ", str(msg_content))
+    file_path = json.load(msg_content)['file_path']
+    print("path to file is ", file_path)
 
 def publish_message(message):
     print(f"Connecting to output topic {output_topic_name}")
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     time.sleep(5)
     print(f"Connecting to input topic {input_topic_name}")
     client = mqtt.Client(client_name)
-    client.on_message=on_message
+    client.on_message = on_message
     client.connect(broker_address)
     client.loop_start()
     client.subscribe(input_topic_name)
